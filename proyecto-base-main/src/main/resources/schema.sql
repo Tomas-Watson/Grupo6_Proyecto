@@ -6,6 +6,7 @@
 -- =====================================================================================
 
 SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS solicitud_devolucion;
 DROP TABLE IF EXISTS solicitud_cancelacion;
 DROP TABLE IF EXISTS pago;
 DROP TABLE IF EXISTS detalle_pedido;
@@ -89,6 +90,8 @@ CREATE TABLE pedido (
     importe_a_abonar    DECIMAL(12,2) NOT NULL,
     vencimiento_reserva DATETIME      NULL,
     fecha_cancelacion   DATETIME      NULL,
+    -- Segunda iteración: desde la entrega corre el plazo de 10 días para pedir una devolución (CU-13)
+    fecha_entrega       DATETIME      NULL,
     CONSTRAINT pk_pedido PRIMARY KEY (id_pedido),
     CONSTRAINT fk_pedido_cliente FOREIGN KEY (id_cliente) REFERENCES cliente (id_cliente)
 ) ENGINE = InnoDB;
@@ -131,4 +134,33 @@ CREATE TABLE solicitud_cancelacion (
     CONSTRAINT pk_solicitud_cancelacion PRIMARY KEY (id_solicitud),
     CONSTRAINT fk_solicitud_pedido FOREIGN KEY (id_pedido) REFERENCES pedido (id_pedido),
     CONSTRAINT fk_solicitud_resolutor FOREIGN KEY (id_resolutor) REFERENCES empleado (id_empleado)
+) ENGINE = InnoDB;
+
+-- =====================================================================================
+-- Segunda iteración: Solicitar devolución (CU-13) y Actualizar devolución (CU-22).
+-- La solicitud se hace sobre un renglón del pedido (pedido + producto), por eso la clave foránea
+-- compuesta hacia detalle_pedido. Los estados y el resultado salen del informe de requerimientos.
+-- decision_cliente la completa el caso de uso en que el cliente decide qué hacer con un producto
+-- dañado (no es de esta iteración).
+-- =====================================================================================
+CREATE TABLE solicitud_devolucion (
+    id_solicitud           INT           NOT NULL AUTO_INCREMENT,
+    id_pedido              INT           NOT NULL,
+    id_producto            INT           NOT NULL,
+    fecha_solicitud        DATETIME      NOT NULL,
+    motivo                 VARCHAR(300)  NULL,
+    foto_producto          VARCHAR(255)  NOT NULL,
+    estado                 ENUM('PENDIENTE_DE_REVISION', 'RECHAZADA', 'ACEPTADA', 'EN_TRANSITO_A_DEVOLUCION',
+                                'EN_VERIFICACION', 'RESUELTA') NOT NULL,
+    fecha_recepcion        DATETIME      NULL,
+    resultado_verificacion ENUM('BUEN_ESTADO', 'DANADO') NULL,
+    decision_cliente       ENUM('DEJA_EN_EMPRESA', 'SOLICITA_REENVIO') NULL,
+    monto_a_reembolsar     DECIMAL(12,2) NULL,
+    id_resolutor           INT           NULL,
+    fecha_resolucion       DATETIME      NULL,
+    CONSTRAINT pk_solicitud_devolucion PRIMARY KEY (id_solicitud),
+    CONSTRAINT fk_devolucion_detalle FOREIGN KEY (id_pedido, id_producto)
+        REFERENCES detalle_pedido (id_pedido, id_producto),
+    CONSTRAINT fk_devolucion_resolutor FOREIGN KEY (id_resolutor) REFERENCES empleado (id_empleado),
+    CONSTRAINT ck_devolucion_monto CHECK (monto_a_reembolsar IS NULL OR monto_a_reembolsar >= 0)
 ) ENGINE = InnoDB;

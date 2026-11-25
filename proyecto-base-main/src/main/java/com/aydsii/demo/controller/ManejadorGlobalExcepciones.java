@@ -3,6 +3,7 @@ package com.aydsii.demo.controller;
 import com.aydsii.demo.dto.ErrorDTO;
 import com.aydsii.demo.service.AccesoDenegadoException;
 import com.aydsii.demo.service.CarritoVacioException;
+import com.aydsii.demo.service.DevolucionNoPermitidaException;
 import com.aydsii.demo.service.RecursoNoEncontradoException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
@@ -14,6 +15,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.method.ParameterErrors;
+import org.springframework.validation.method.ParameterValidationResult;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.ServletWebRequest;
@@ -22,6 +27,7 @@ import org.springframework.web.method.annotation.HandlerMethodValidationExceptio
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -53,11 +59,22 @@ public class ManejadorGlobalExcepciones extends ResponseEntityExceptionHandler {
                 request.getRequestURI(), excepcion.getProductosNoDisponibles());
     }
 
-    /** Consultar estado del pedido: el pedido no existe: 404. */
+    /** El pedido, el producto del pedido, la solicitud de devolución o el empleado no existen: 404. */
     @ExceptionHandler(RecursoNoEncontradoException.class)
     public ResponseEntity<ErrorDTO> manejarNoEncontrado(RecursoNoEncontradoException excepcion,
                                                         HttpServletRequest request) {
-        return responder(HttpStatus.NOT_FOUND, "Pedido no encontrado", excepcion.getMessage(),
+        return responder(HttpStatus.NOT_FOUND, excepcion.getTitulo(), excepcion.getMessage(),
+                request.getRequestURI(), List.of());
+    }
+
+    /**
+     * Devoluciones (CU-13 y CU-22): una regla de negocio no permite pedir o actualizar la devolución
+     * (por ejemplo, el FE-01 de cada caso de uso): 409. No se registró nada.
+     */
+    @ExceptionHandler(DevolucionNoPermitidaException.class)
+    public ResponseEntity<ErrorDTO> manejarDevolucionNoPermitida(DevolucionNoPermitidaException excepcion,
+                                                                 HttpServletRequest request) {
+        return responder(HttpStatus.CONFLICT, excepcion.getTitulo(), excepcion.getMessage(),
                 request.getRequestURI(), List.of());
     }
 
@@ -89,22 +106,57 @@ public class ManejadorGlobalExcepciones extends ResponseEntityExceptionHandler {
                 request.getRequestURI(), List.of());
     }
 
-    /** Algún id de la ruta no cumple {@code @Positive} (cero o negativo): 400. */
+    /**
+     * Algún id de la ruta no cumple {@code @Positive} (cero o negativo), o algún campo del cuerpo
+     * (por ejemplo, la foto en CU-13) no cumple su validación: 400. Los campos inválidos van en
+     * {@code detalles}.
+     */
     @Override
     protected ResponseEntity<Object> handleHandlerMethodValidationException(HandlerMethodValidationException excepcion,
                                                                             HttpHeaders headers,
                                                                             HttpStatusCode status,
                                                                             WebRequest request) {
-        List<String> parametros = excepcion.getParameterValidationResults().stream()
-                .map(resultado -> resultado.getMethodParameter().getParameterName())
-                .filter(java.util.Objects::nonNull)
-                .map(nombre -> "'" + nombre + "'")
-                .toList();
-        String mensaje = parametros.isEmpty()
-                ? "Los identificadores deben ser números enteros positivos."
-                : "El parámetro " + String.join(", ", parametros) + " debe ser un número entero positivo.";
+        List<String> parametros = new ArrayList<>();
+        List<String> camposInvalidos = new ArrayList<>();
+        for (ParameterValidationResult resultado : excepcion.getParameterValidationResults()) {
+            if (resultado instanceof ParameterErrors errores) {                    // cuerpo con @Valid
+                errores.getFieldErrors().forEach(campo ->
+                        camposInvalidos.add(campo.getField() + ": " + campo.getDefaultMessage()));
+            } else if (resultado.getMethodParameter().getParameterName() != null) {
+                parametros.add("'" + resultado.getMethodParameter().getParameterName() + "'");
+            }
+        }
+        String mensaje;
+        if (!camposInvalidos.isEmpty()) {
+            mensaje = "Hay campos inválidos en el cuerpo de la solicitud.";
+        } else if (parametros.isEmpty()) {
+            mensaje = "Los identificadores deben ser números enteros positivos.";
+        } else {
+            mensaje = "El parámetro " + String.join(", ", parametros) + " debe ser un número entero positivo.";
+        }
         ErrorDTO error = ErrorDTO.de(HttpStatus.BAD_REQUEST.value(), TITULO_SOLICITUD_INVALIDA,
-                mensaje, ruta(request), List.of());
+                mensaje, ruta(request), camposInvalidos);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).headers(headers).body(error);
+    }
+
+    /** Falta un parámetro obligatorio de la URL (por ejemplo, idEmpleado en CU-22): 400. */
+    @Override
+    protected ResponseEntity<Object> handleMissingServletRequestParameter(MissingServletRequestParameterException excepcion,
+                                                                          HttpHeaders headers, HttpStatusCode status,
+                                                                          WebRequest request) {
+        ErrorDTO error = ErrorDTO.de(HttpStatus.BAD_REQUEST.value(), TITULO_SOLICITUD_INVALIDA,
+                "Falta el parámetro obligatorio '" + excepcion.getParameterName() + "'.", ruta(request), List.of());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).headers(headers).body(error);
+    }
+
+    /** El cuerpo no es un JSON válido o un valor no corresponde (por ejemplo, un resultado inexistente): 400. */
+    @Override
+    protected ResponseEntity<Object> handleHttpMessageNotReadable(HttpMessageNotReadableException excepcion,
+                                                                  HttpHeaders headers, HttpStatusCode status,
+                                                                  WebRequest request) {
+        ErrorDTO error = ErrorDTO.de(HttpStatus.BAD_REQUEST.value(), TITULO_SOLICITUD_INVALIDA,
+                "El cuerpo de la solicitud no tiene el formato esperado. Revisá el JSON (en CU-22, 'resultado' "
+                        + "debe ser BUEN_ESTADO o DANADO).", ruta(request), List.of());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).headers(headers).body(error);
     }
 

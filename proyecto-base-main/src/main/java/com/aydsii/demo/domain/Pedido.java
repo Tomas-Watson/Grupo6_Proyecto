@@ -1,5 +1,6 @@
 package com.aydsii.demo.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -14,6 +15,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotEmpty;
@@ -35,10 +37,13 @@ import java.util.List;
  * vencimiento de la reserva, que es el plazo para pagar (paso 7 del flujo principal de Comprar).
  * También es lo que lista {listarPedidos} en Consultar estado del pedido, cuyo diagrama muestra
  * solo idPedido, fechaHora, estado, montoTotal y la asociación con el cliente.
+ *
+ * Segunda iteración: Solicitar devolución (CU-13) y Actualizar devolución (CU-22) usan la fecha de
+ * entrega (plazo de 10 días), el detalle de un producto y el medio de pago original.
  */
 @Entity
 @Table(name = "pedido")
-@JsonPropertyOrder({"idPedido", "estado", "fechaHora", "vencimientoReserva", "fechaCancelacion", "cliente",
+@JsonPropertyOrder({"idPedido", "estado", "fechaHora", "vencimientoReserva", "fechaCancelacion", "fechaEntrega", "cliente",
         "detalles", "cantidadProductos", "montoTotal", "importeAAbonar"})
 @Schema(description = "Pedido del cliente")
 public class Pedido {
@@ -101,6 +106,18 @@ public class Pedido {
             example = "2026-10-20T16:00:00", nullable = true)
     private LocalDateTime fechaCancelacion;
 
+    @Column(name = "fecha_entrega")
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @Schema(description = "Fecha y hora en que se entregó el pedido (solo si está ENTREGADO). Desde ahí corre el "
+            + "plazo de 10 días para pedir una devolución", example = "2026-11-22T15:00:00", nullable = true)
+    private LocalDateTime fechaEntrega;
+
+    /** Pagos del pedido: Actualizar devolución (CU-22) los usa para saber el medio de reembolso (RN-06). */
+    @OneToMany(mappedBy = "pedido")
+    @OrderBy("idPago")
+    @JsonIgnore
+    private List<Pago> pagos = new ArrayList<>();
+
     @NotEmpty
     @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL, orphanRemoval = true)
     @Schema(description = "Detalle del pedido: productos, cantidades, subtotales y unidades reservadas")
@@ -157,6 +174,26 @@ public class Pedido {
         return importeAAbonar;
     }
 
+    // ------------------------------------------------------------ Devoluciones (CU-13 y CU-22)
+
+    /** CU-13: cliente que hizo el pedido, para controlar su límite de devoluciones (RN-03). */
+    public Long obtenerIdCliente() {
+        return cliente.getIdUsuario();
+    }
+
+    /** CU-13: renglón del pedido de un producto, o {@code null} si el producto no está en el pedido. */
+    public DetallePedido obtenerDetalle(Long idProducto) {
+        return detalles.stream()
+                .filter(detalle -> detalle.getProducto().getIdProducto().equals(idProducto))
+                .findFirst()
+                .orElse(null);
+    }
+
+    /** CU-22: medio con el que se pagó el pedido (el del primer pago), o {@code null} si no tiene pagos. */
+    public MedioPago medioPagoOriginal() {
+        return pagos.isEmpty() ? null : pagos.get(0).getMedioPago();
+    }
+
     // ------------------------------------------------------------ Getters
 
     public Long getIdPedido() {
@@ -193,6 +230,10 @@ public class Pedido {
 
     public LocalDateTime getVencimientoReserva() {
         return vencimientoReserva;
+    }
+
+    public LocalDateTime getFechaEntrega() {
+        return fechaEntrega;
     }
 
     public List<DetallePedido> getDetalles() {

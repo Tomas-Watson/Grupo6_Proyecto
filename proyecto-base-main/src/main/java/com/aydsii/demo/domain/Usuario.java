@@ -20,7 +20,8 @@ import jakarta.persistence.Table;
  * En el DER un cliente es un usuario: {cliente.id_cliente} es a la vez clave primaria y clave
  * foránea a {usuario.id_usuario}. Por eso {@link Cliente} hereda de Usuario y la herencia se
  * mapea con {@link InheritanceType#JOINED}. La columna {tipo_usuario} indica el tipo de cada fila.
- * Los empleados no participan en estos casos de uso, así que no se mapean.
+ * En la segunda iteración se agrega {@link Empleado}: el de Ventas que actualiza una devolución
+ * (CU-22).
  */
 @Entity
 @Table(name = "usuario")

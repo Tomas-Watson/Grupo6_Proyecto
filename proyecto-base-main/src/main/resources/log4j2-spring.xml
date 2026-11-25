@@ -27,6 +27,11 @@
 				</Delete>
 			</DefaultRolloverStrategy>
 		</RollingFile>
+
+		<!-- Segunda iteración: las notificaciones de devoluciones (NotificacionService) van además a su propio archivo -->
+		<File name="Notificaciones" fileName="${LOG_DIR}/notificaciones.log">
+			<PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss} - %msg%n"/>
+		</File>
 	</Appenders>
 
 	<Loggers>
@@ -34,6 +39,14 @@
 		<Logger name="com.aydsii" level="debug" additivity="false">
 			<AppenderRef ref="Console"/>
 			<AppenderRef ref="File"/>
+		</Logger>
+
+		<!-- Notificaciones de devoluciones: solo INFO o superior, a la consola, al log general y a notificaciones.log.
+		     Cambiar el destino o el nivel acá no requiere tocar el código: es lo que permite la fachada SLF4J. -->
+		<Logger name="com.aydsii.demo.service.NotificacionService" level="info" additivity="false">
+			<AppenderRef ref="Console"/>
+			<AppenderRef ref="File"/>
+			<AppenderRef ref="Notificaciones"/>
 		</Logger>
 
 		<!-- SQL ejecutado por Hibernate (subir a debug para verlo) -->

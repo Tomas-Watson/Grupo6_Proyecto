@@ -87,6 +87,16 @@ public class DetallePedido {
         return precioUnitario.multiply(BigDecimal.valueOf(cantidad));
     }
 
+    /** CU-22: pedido al que pertenece el renglón. */
+    public Pedido obtenerPedido() {
+        return pedido;
+    }
+
+    /** CU-13 y CU-22: número del pedido, sin necesidad de cargar el pedido completo. */
+    public Long obtenerIdPedido() {
+        return id.getIdPedido();
+    }
+
     /** Lo usa {@link Pedido#agregarDetalle(DetallePedido)} para mantener la composición. */
     void setPedido(Pedido pedido) {
         this.pedido = pedido;

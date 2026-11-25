@@ -37,7 +37,9 @@ import java.util.List;
         tags = {
                 @Tag(name = PedidoController.TAG_COMPRAR, description = "Caso de uso Comprar (CU-05)."),
                 @Tag(name = PedidoController.TAG_CONSULTAR, description = "Caso de uso Consultar estado del "
-                        + "pedido (CU-09).")})
+                        + "pedido (CU-09)."),
+                @Tag(name = DevolucionController.TAG_SOLICITAR, description = DevolucionController.DESCRIPCION_SOLICITAR),
+                @Tag(name = DevolucionController.TAG_ACTUALIZAR, description = DevolucionController.DESCRIPCION_ACTUALIZAR)})
 public class PedidoController {
 
     static final String TAG_COMPRAR = "1. Comprar (CU-05)";
