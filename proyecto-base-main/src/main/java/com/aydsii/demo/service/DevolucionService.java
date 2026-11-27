@@ -155,7 +155,7 @@ public class DevolucionService {
 
     /**
      * Servicio 2, pasos 6 a 10: Ventas indica el resultado de la verificación y confirma.
-     * Recién acá se registra la recepción (fecha y hora), como pidió la profesora.
+     * Recién acá se registra la recepción (fecha y hora).
      * Con BUEN_ESTADO se calcula el monto y la devolución queda «Resuelta»; con DANADO queda
      * «En verificación» a la espera de la decisión del cliente (FA-01).
      *

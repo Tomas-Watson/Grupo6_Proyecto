@@ -47,6 +47,7 @@ public final class PoliticaDevolucion {
     private final BigDecimal porcentajeDanadoSiLoDeja;
 
     /** Constructor privado: solo lo usa {@link #obtenerInstancia()}. */
+    // nadie afuera de la clase puede hacer un new()
     private PoliticaDevolucion() {
         this.plazoDiasDevolucion = 10;
         this.limiteDevoluciones = 2;
@@ -58,7 +59,9 @@ public final class PoliticaDevolucion {
     }
 
     /** Punto de acceso global: crea la instancia la primera vez y después devuelve siempre la misma. */
-    public static synchronized PoliticaDevolucion obtenerInstancia() {
+    public static synchronized PoliticaDevolucion obtenerInstancia() { // synchronized para atender varias peticiones 
+        // a la vez en disitintos hilos, evitando que dos peticiones lleguen al mismo tiempo y una pueda ver null
+                                                                        
         if (instancia == null) {
             instancia = new PoliticaDevolucion();
         }

@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 /**
  * «DTO» DetalleDevolucionDTO del diagrama de clases de diseño de CU-22: los datos de la solicitud
  * que el sistema le muestra a Ventas cuando ingresa el número de devolución (paso 5). Es la
- * respuesta del primer servicio, como pidió la profesora.
+ * respuesta del primer servicio.
  */
 @JsonPropertyOrder({"idSolicitud", "estado", "fechaSolicitud", "cliente", "idPedido", "fechaEntrega", "producto",
         "valorPagado", "motivo", "fotoProducto"})
